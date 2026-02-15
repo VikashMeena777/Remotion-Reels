@@ -142,8 +142,7 @@ jobs:
           npx remotion render MotivationalReel /tmp/video-silent.mp4 \
             --props=/tmp/props-synced.json \
             --codec=h264 \
-            --image-format=jpeg \
-            --frames=0-${TOTAL_FRAMES}
+            --image-format=jpeg
           echo "✅ Render complete!"
           ls -lh /tmp/video-silent.mp4
 
