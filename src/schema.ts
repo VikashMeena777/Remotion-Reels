@@ -1,28 +1,63 @@
 import { z } from "zod";
 
 /**
- * Visual symbol types for the geometric animation library.
- * Each maps to a distinct animated shape that illustrates the phrase meaning.
+ * Original 15 named visual symbols (premium, detailed animations).
+ * These are high-quality animated scenes kept as-is.
+ */
+export const NamedVisualType = z.enum([
+    "footsteps", "door", "sunrise", "flower", "drops",
+    "mountain", "heartbeat", "eye", "fire", "waves",
+    "clock", "lightning", "scale", "stairs", "shatter",
+]);
+
+/**
+ * Expanded shape library for compose mode — 20 shapes.
+ * These generate unique geometric visuals for each phrase.
+ */
+export const ComposeShape = z.enum([
+    "circle", "triangle", "square", "line", "dot",
+    "star", "hexagon", "diamond", "cross", "spiral",
+    "arrow", "crescent", "ring", "pentagon", "spark",
+    "infinity", "heart", "leaf", "bolt", "wave",
+]);
+
+/**
+ * Layout arrangements — 14 ways to position shapes.
+ */
+export const ComposeArrangement = z.enum([
+    "flower", "ring", "stack", "grid", "scatter", "row",
+    "spiral", "cascade", "burst", "orbit", "zigzag",
+    "pyramid", "wave", "radial",
+]);
+
+/**
+ * Animation style applied to composed visuals.
+ */
+export const ComposeAnimation = z.enum([
+    "fadeIn",     // default gentle fade
+    "pulse",      // rhythmic pulsing
+    "rotate",     // slow rotation
+    "float",      // gentle floating up/down
+    "spin",       // continuous rotation
+    "morph",      // shape morphing
+    "flicker",    // rapid opacity flicker
+    "bounce",     // elastic bounce in
+    "ripple",     // outward wave ripple
+    "grow",       // scale from 0 to full
+    "dissolve",   // particle dissolve reveal
+    "glitch",     // digital glitch effect
+]);
+
+/**
+ * Visual type — either a named symbol or "compose" for unlimited dynamic visuals.
  */
 export const VisualType = z.enum([
-    // Specific metaphor symbols
-    "footsteps",    // past, walking, journey, path
-    "door",         // future, opportunity, open, gateway
-    "sunrise",      // beginning, new, dawn, hope
-    "flower",       // growth, bloom, beauty, nature
-    "drops",        // rain, tears, falling, emotion
-    "mountain",     // climb, peak, challenge, overcome
-    "heartbeat",    // heart, feel, alive, passion
-    "eye",          // see, vision, clarity, focus
-    "fire",         // burn, energy, destroy, ignite
-    "waves",        // ocean, calm, flow, peace
-    "clock",        // time, wait, moment, now
-    "lightning",    // power, strike, sudden, shock
-    "scale",        // balance, choice, decide, weight
-    "stairs",       // rise, step, progress, level up
-    "shatter",      // break, free, destroy, escape
-    // Dynamic composition fallback
-    "compose",      // AI-directed: uses count + shape + arrangement
+    // Named symbols (15 premium)
+    "footsteps", "door", "sunrise", "flower", "drops",
+    "mountain", "heartbeat", "eye", "fire", "waves",
+    "clock", "lightning", "scale", "stairs", "shatter",
+    // Compose mode (unlimited combos)
+    "compose",
 ]);
 
 export type VisualTypeName = z.infer<typeof VisualType>;
@@ -32,29 +67,34 @@ export type VisualTypeName = z.infer<typeof VisualType>;
  * startFrame and durationInFrames come from Whisper word timestamps.
  */
 export const PhraseSchema = z.object({
-    text: z.string().describe("3-5 word phrase synced to voiceover"),
-    visual: VisualType.describe("Geometric animation symbol"),
+    text: z.string().describe("3-6 word display phrase shown on screen"),
+    visual: VisualType.describe("Named symbol or 'compose' for dynamic visual"),
+    // Speech segment for Whisper matching (stripped by map-timestamps.mjs)
+    speechSegment: z.string().optional()
+        .describe("Exact words from the speech for this phrase (used for Whisper matching)"),
     // Audio-synced timing (set by map-timestamps.mjs in CI)
     startFrame: z.number().default(0)
         .describe("Frame when this phrase starts (from Whisper timestamps)"),
     durationInFrames: z.number().default(60)
         .describe("Duration of this phrase in frames (from Whisper timestamps)"),
-    // For "compose" type: dynamic shape composition
-    composeShape: z.enum(["circle", "triangle", "square", "line", "dot"]).optional()
-        .describe("Base shape for compose mode"),
-    composeCount: z.number().min(1).max(8).optional()
-        .describe("Number of shapes for compose mode"),
-    composeArrangement: z.enum(["flower", "ring", "stack", "grid", "scatter", "row"]).optional()
-        .describe("How shapes are arranged in compose mode"),
+    // Compose mode parameters — for unlimited visual variety
+    composeShape: ComposeShape.optional()
+        .describe("Primary shape for compose mode"),
+    composeCount: z.number().min(1).max(12).optional()
+        .describe("Number of shapes (1-12)"),
+    composeArrangement: ComposeArrangement.optional()
+        .describe("Layout arrangement for shapes"),
+    composeAnimation: ComposeAnimation.optional()
+        .describe("Animation style for the visual"),
     composeLabel: z.string().optional()
-        .describe("Short label to overlay on composed shapes"),
+        .describe("Optional short label overlay"),
 });
 
 export type PhraseData = z.infer<typeof PhraseSchema>;
 
 /**
  * Input props for the MotivationalReel composition.
- * Timing is now per-phrase (from Whisper), not global.
+ * Timing is per-phrase (from Whisper), not global.
  */
 export const ReelSchema = z.object({
     phrases: z.array(PhraseSchema)

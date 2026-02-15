@@ -2,20 +2,11 @@
 /**
  * map-timestamps.mjs
  * 
- * Takes Whisper word-level timestamps JSON + original Remotion props JSON,
- * maps words to phrases to compute exact startFrame/durationInFrames per phrase,
- * and writes updated props to output file.
+ * Takes Whisper word-level timestamps + Remotion props,
+ * uses each phrase's `speechSegment` (the exact spoken words) to find
+ * when that segment starts/ends in the audio, then sets startFrame/durationInFrames.
  * 
- * KEY DESIGN: Each phrase EXTENDS until the next phrase starts + overlap,
- * so there are NEVER gaps between phrases. The crossfade in PhraseScene
- * handles smooth transitions.
- * 
- * Usage:
- *   node scripts/map-timestamps.mjs \
- *     --whisper /tmp/whisper-output.json \
- *     --props /tmp/props.json \
- *     --output /tmp/props-synced.json \
- *     --fps 30
+ * Each phrase extends until the next phrase starts + overlap for smooth crossfade.
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -32,43 +23,38 @@ const propsPath = getArg('props', '/tmp/props.json');
 const outputPath = getArg('output', '/tmp/props-synced.json');
 const fps = parseInt(getArg('fps', '30'), 10);
 
-// Overlap frames for crossfade (matches PhraseScene crossfade timing)
 const OVERLAP_FRAMES = 10;
 
 // Load files
 const whisperData = JSON.parse(readFileSync(whisperPath, 'utf8'));
 const props = JSON.parse(readFileSync(propsPath, 'utf8'));
 
-// Extract word timestamps from Whisper output
+// Extract word timestamps
 let words = [];
 if (whisperData.words && Array.isArray(whisperData.words)) {
     words = whisperData.words;
 } else if (whisperData.segments) {
     for (const seg of whisperData.segments) {
-        if (seg.words) {
-            words.push(...seg.words);
-        }
+        if (seg.words) words.push(...seg.words);
     }
 }
 
 if (words.length === 0) {
     console.error('❌ No word timestamps found in Whisper output!');
-    console.error('Whisper data keys:', Object.keys(whisperData));
     process.exit(1);
 }
 
 console.log(`📝 Found ${words.length} words with timestamps`);
 console.log(`📄 Found ${props.phrases.length} phrases to map`);
 
-/**
- * Normalize text for comparison
- */
+/** Normalize text for comparison */
 function normalize(text) {
     return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 /**
- * Step 1: Find the Whisper start/end time for each phrase
+ * Match using speechSegment (the exact spoken words for each phrase).
+ * Sequential matching — each phrase picks up where the last left off.
  */
 const phrases = props.phrases;
 let wordIdx = 0;
@@ -76,47 +62,63 @@ const phraseTimings = [];
 
 for (let i = 0; i < phrases.length; i++) {
     const phrase = phrases[i];
-    const phraseWords = normalize(phrase.text).split(' ');
+    // Use speechSegment for matching (it's the actual spoken words)
+    const matchText = phrase.speechSegment || phrase.text;
+    const segmentWords = normalize(matchText).split(' ').filter(w => w.length > 0);
 
-    // Find the starting word index for this phrase
+    if (segmentWords.length === 0) {
+        // Fallback: just take the next few words
+        const startWord = Math.min(wordIdx, words.length - 1);
+        const endWord = Math.min(wordIdx + 3, words.length - 1);
+        phraseTimings.push({ startTime: words[startWord].start, endTime: words[endWord].end });
+        wordIdx = endWord + 1;
+        continue;
+    }
+
+    // Find best starting position for this segment's words
     let bestStart = wordIdx;
-    let bestScore = 0;
+    let bestScore = -1;
 
-    const searchEnd = Math.min(wordIdx + phraseWords.length + 5, words.length);
+    // Search from current position (allow small look-ahead for alignment)
+    const searchEnd = Math.min(wordIdx + segmentWords.length + 8, words.length);
 
-    for (let tryStart = wordIdx; tryStart < searchEnd; tryStart++) {
-        let matchCount = 0;
-        for (let pw = 0; pw < phraseWords.length && tryStart + pw < words.length; pw++) {
-            const whisperWord = normalize(words[tryStart + pw].word);
-            if (whisperWord === phraseWords[pw] ||
-                whisperWord.includes(phraseWords[pw]) ||
-                phraseWords[pw].includes(whisperWord)) {
-                matchCount++;
+    for (let tryStart = Math.max(0, wordIdx - 2); tryStart < searchEnd; tryStart++) {
+        let score = 0;
+        for (let sw = 0; sw < segmentWords.length && tryStart + sw < words.length; sw++) {
+            const whisperWord = normalize(words[tryStart + sw].word);
+            const segWord = segmentWords[sw];
+            if (whisperWord === segWord) {
+                score += 2; // Exact match
+            } else if (whisperWord.includes(segWord) || segWord.includes(whisperWord)) {
+                score += 1; // Partial match
             }
         }
-        if (matchCount > bestScore) {
-            bestScore = matchCount;
+        if (score > bestScore) {
+            bestScore = score;
             bestStart = tryStart;
         }
     }
 
-    const phraseStartWord = Math.min(bestStart, words.length - 1);
-    const phraseEndWord = Math.min(bestStart + phraseWords.length - 1, words.length - 1);
+    // Calculate timing from the matched word span
+    const startWordIdx = Math.min(bestStart, words.length - 1);
+    const endWordIdx = Math.min(bestStart + segmentWords.length - 1, words.length - 1);
 
-    const startTime = words[phraseStartWord].start;
-    const endTime = words[phraseEndWord].end;
+    const startTime = words[startWordIdx].start;
+    const endTime = words[endWordIdx].end;
 
     phraseTimings.push({ startTime, endTime });
 
-    console.log(`  📍 Phrase ${i + 1}: "${phrase.text}" → ${startTime.toFixed(2)}s-${endTime.toFixed(2)}s`);
+    console.log(`  📍 Phrase ${i + 1}: "${phrase.text}"`);
+    console.log(`     Speech: "${matchText.substring(0, 50)}..."`);
+    console.log(`     → ${startTime.toFixed(2)}s-${endTime.toFixed(2)}s (words ${startWordIdx}-${endWordIdx})`);
 
-    wordIdx = phraseEndWord + 1;
+    // Advance past this segment
+    wordIdx = endWordIdx + 1;
 }
 
 /**
- * Step 2: Set startFrame and durationInFrames with OVERLAP
- * Each phrase extends until the next phrase starts + overlap frames,
- * so crossfades are seamless (no black gaps).
+ * Set startFrame and durationInFrames with overlap.
+ * Each phrase extends until the next starts + overlap.
  */
 for (let i = 0; i < phrases.length; i++) {
     const timing = phraseTimings[i];
@@ -124,29 +126,28 @@ for (let i = 0; i < phrases.length; i++) {
 
     let endFrame;
     if (i < phrases.length - 1) {
-        // Extend to where the NEXT phrase starts + overlap for smooth crossfade
         const nextStartFrame = Math.round(phraseTimings[i + 1].startTime * fps);
         endFrame = nextStartFrame + OVERLAP_FRAMES;
     } else {
-        // Last phrase: use its natural end + a small buffer
         endFrame = Math.round(timing.endTime * fps) + Math.round(fps * 0.5);
     }
 
     phrases[i].startFrame = startFrame;
     phrases[i].durationInFrames = Math.max(20, endFrame - startFrame);
 
-    console.log(`  ✅ Phrase ${i + 1}: frame ${startFrame}–${endFrame} (${phrases[i].durationInFrames} frames, ${(phrases[i].durationInFrames / fps).toFixed(1)}s)`);
+    // Remove speechSegment from final props (not needed by Remotion)
+    delete phrases[i].speechSegment;
+
+    console.log(`  ✅ Phrase ${i + 1}: "${phrases[i].text}" [${phrases[i].visual}] → frame ${startFrame}–${endFrame} (${phrases[i].durationInFrames}f)`);
 }
 
-// Get actual audio duration from Whisper
+// Audio duration
 const audioDuration = whisperData.duration || words[words.length - 1].end || 20;
 const audioEndFrame = Math.round(audioDuration * fps);
-
-// The last phrase visual ends here
 const lastPhrase = phrases[phrases.length - 1];
 const lastPhraseEnd = lastPhrase.startFrame + lastPhrase.durationInFrames;
 
-// Author + CTA come after audio ends (4 seconds total)
+// Outro for Author/CTA
 const outroDuration = Math.round(fps * 4);
 const totalFrames = Math.max(lastPhraseEnd, audioEndFrame) + outroDuration;
 
@@ -157,13 +158,10 @@ props.durationInSeconds = Math.ceil(totalFrames / fps);
 props.audioDuration = audioDuration;
 delete props.phraseDuration;
 
-// Write output
 writeFileSync(outputPath, JSON.stringify(props, null, 2));
 
 console.log(`\n🎬 Timing Summary:`);
-console.log(`  Audio duration: ${audioDuration.toFixed(1)}s`);
-console.log(`  Last phrase visual ends: frame ${lastPhraseEnd} (${(lastPhraseEnd / fps).toFixed(1)}s)`);
-console.log(`  Audio ends: frame ${audioEndFrame} (${(audioEndFrame / fps).toFixed(1)}s)`);
-console.log(`  Outro starts: frame ${Math.max(lastPhraseEnd, audioEndFrame)}`);
+console.log(`  Audio: ${audioDuration.toFixed(1)}s`);
+console.log(`  Last phrase ends: frame ${lastPhraseEnd} (${(lastPhraseEnd / fps).toFixed(1)}s)`);
 console.log(`  Total frames: ${totalFrames} (${(totalFrames / fps).toFixed(1)}s)`);
 console.log(`\n✅ Synced props written to ${outputPath}`);
