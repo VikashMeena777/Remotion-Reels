@@ -1,0 +1,127 @@
+name: Render Remotion Reel
+
+on:
+  repository_dispatch:
+    types: [render-reel]
+
+  workflow_dispatch:
+    inputs:
+      props:
+        description: 'JSON inputProps for the Remotion composition'
+        required: true
+        type: string
+      audio_url:
+        description: 'Google Drive URL for the voiceover audio'
+        required: true
+        type: string
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      # --- Prepare payload ---
+      - name: Prepare inputs (repository_dispatch)
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo '${{ toJson(github.event.client_payload.props) }}' > /tmp/props.json
+          echo "AUDIO_URL=${{ github.event.client_payload.audio_url }}" >> $GITHUB_ENV
+          echo "REEL_ID=${{ github.event.client_payload.reel_id }}" >> $GITHUB_ENV
+
+      - name: Prepare inputs (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo '${{ github.event.inputs.props }}' > /tmp/props.json
+          echo "AUDIO_URL=${{ github.event.inputs.audio_url }}" >> $GITHUB_ENV
+          echo "REEL_ID=manual-$(date +%s)" >> $GITHUB_ENV
+
+      # --- Render video (silent, just visuals) ---
+      - name: Render Remotion video
+        run: |
+          echo "🎬 Rendering MotivationalReel..."
+          npx remotion render MotivationalReel /tmp/video-silent.mp4 \
+            --props=/tmp/props.json \
+            --codec=h264 \
+            --image-format=jpeg
+          echo "✅ Render complete!"
+          ls -lh /tmp/video-silent.mp4
+
+      # --- Download voiceover audio ---
+      - name: Download voiceover audio
+        run: |
+          echo "🎙️ Downloading voiceover from Drive..."
+          # Install gdown for Google Drive downloads
+          pip install -q gdown
+          gdown "$AUDIO_URL" -O /tmp/voiceover.mp3 --fuzzy
+          echo "✅ Audio downloaded!"
+          ls -lh /tmp/voiceover.mp3
+
+      # --- Merge video + audio into final reel ---
+      - name: Merge video + audio
+        run: |
+          echo "🔀 Merging video + voiceover..."
+          ffmpeg -i /tmp/video-silent.mp4 -i /tmp/voiceover.mp3 \
+            -c:v copy \
+            -c:a aac -b:a 192k \
+            -map 0:v:0 -map 1:a:0 \
+            -shortest \
+            -y /tmp/final-reel.mp4
+          echo "✅ Final reel created!"
+          ls -lh /tmp/final-reel.mp4
+
+      # --- Upload to Google Drive ---
+      - name: Setup rclone for Google Drive
+        run: |
+          curl -s https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" | base64 -d > ~/.config/rclone/rclone.conf
+          rclone listremotes
+
+      - name: Upload final reel to Google Drive
+        id: upload
+        run: |
+          FILENAME="reel-${REEL_ID}.mp4"
+          rclone copyto /tmp/final-reel.mp4 "gdrive:${{ secrets.OUTPUT_FOLDER_PATH }}/${FILENAME}"
+          echo "✅ Uploaded to Google Drive: ${FILENAME}"
+          echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
+
+      # --- Callback to n8n ---
+      - name: Notify n8n - Success
+        if: success() && secrets.N8N_WEBHOOK_URL != ''
+        run: |
+          curl -s -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"status\": \"success\",
+              \"reel_id\": \"$REEL_ID\",
+              \"filename\": \"${{ steps.upload.outputs.filename }}\"
+            }"
+
+      - name: Notify n8n - Failure
+        if: failure() && secrets.N8N_WEBHOOK_URL != ''
+        run: |
+          curl -s -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"status\": \"failed\",
+              \"reel_id\": \"$REEL_ID\",
+              \"run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            }"
