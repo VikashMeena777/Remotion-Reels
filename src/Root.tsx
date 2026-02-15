@@ -2,34 +2,50 @@ import { Composition } from "remotion";
 import { MotivationalReel } from "./compositions/MotivationalReel";
 import { ReelSchema } from "./schema";
 
-/**
- * Root — registers all Remotion compositions.
- * The MotivationalReel composition uses dynamic duration based on inputProps.
- */
+const FPS = 30;
+
+// Default phrases for preview
+const defaultPhrases = [
+    { text: "the past does not", visual: "footsteps" as const },
+    { text: "define your future", visual: "door" as const },
+    { text: "every ending is", visual: "sunrise" as const },
+    { text: "a new beginning", visual: "flower" as const },
+    { text: "let your vision", visual: "eye" as const },
+    { text: "burn with passion", visual: "fire" as const },
+    { text: "rise above the storm", visual: "mountain" as const },
+    { text: "find your rhythm", visual: "heartbeat" as const },
+    { text: "break free", visual: "shatter" as const },
+    { text: "from all limits", visual: "lightning" as const },
+];
+
 export const RemotionRoot: React.FC = () => {
+    const durationInSeconds = 35;
+    const phraseDuration = 80; // ~2.7 sec per phrase at 30fps
+    const overlapFrames = 8;
+    const introDuration = Math.round(FPS * 1.5);
+    const outroDuration = Math.round(FPS * 4);
+    const totalPhraseFrames =
+        defaultPhrases.length * phraseDuration -
+        (defaultPhrases.length - 1) * overlapFrames;
+    const totalFrames = introDuration + totalPhraseFrames + outroDuration;
+
     return (
         <>
             <Composition
                 id="MotivationalReel"
                 component={MotivationalReel}
-                schema={ReelSchema}
-                defaultProps={{
-                    hook: "Stop scrolling. Read this.",
-                    quote:
-                        "The pain you feel today is the strength you feel tomorrow. Every challenge you face is building the warrior inside you. Don't run from the struggle. Embrace it. Because on the other side of pain is the person you were always meant to become.",
-                    author: "David Goggins",
-                    cta: "Follow for daily motivation",
-                    theme: "dark" as const,
-                    watermarkText: "@YourPage",
-                    durationInSeconds: 35,
-                }}
-                fps={30}
+                durationInFrames={totalFrames}
+                fps={FPS}
                 width={1080}
                 height={1920}
-                calculateMetadata={({ props }) => {
-                    return {
-                        durationInFrames: Math.round(props.durationInSeconds * 30),
-                    };
+                schema={ReelSchema}
+                defaultProps={{
+                    phrases: defaultPhrases,
+                    author: "Unknown",
+                    cta: "Follow for daily motivation",
+                    watermarkText: "@YourPage",
+                    durationInSeconds,
+                    phraseDuration,
                 }}
             />
         </>

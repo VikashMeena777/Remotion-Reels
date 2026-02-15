@@ -1,22 +1,17 @@
 import React from "react";
-import { interpolate, useCurrentFrame } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 
 interface WatermarkProps {
     text: string;
-    color?: string;
 }
 
 /**
- * Semi-transparent channel watermark — always visible, never distracting.
- * Positioned at top-right with subtle opacity.
+ * Minimal watermark — subtle white text, bottom-right corner.
  */
-export const Watermark: React.FC<WatermarkProps> = ({
-    text,
-    color = "rgba(255,255,255,0.25)",
-}) => {
+export const Watermark: React.FC<WatermarkProps> = ({ text }) => {
     const frame = useCurrentFrame();
-
-    const opacity = interpolate(frame, [0, 30], [0, 1], {
+    const opacity = interpolate(frame, [30, 50], [0, 0.3], {
+        extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
     });
 
@@ -24,15 +19,14 @@ export const Watermark: React.FC<WatermarkProps> = ({
         <div
             style={{
                 position: "absolute",
-                top: 60,
-                right: 40,
-                fontSize: 20,
+                bottom: 40,
+                right: 30,
+                color: "white",
+                fontSize: 14,
                 fontFamily: "'Inter', sans-serif",
-                fontWeight: 600,
-                color,
+                fontWeight: 300,
+                letterSpacing: 1,
                 opacity,
-                letterSpacing: "0.05em",
-                textShadow: "0 1px 4px rgba(0,0,0,0.5)",
             }}
         >
             {text}

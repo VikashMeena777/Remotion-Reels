@@ -1,83 +1,65 @@
 import { z } from "zod";
 
 /**
- * Input schema for the MotivationalReel composition.
- * All data is passed from n8n → GitHub Actions → Remotion render.
+ * Visual symbol types for the geometric animation library.
+ * Each maps to a distinct animated shape that illustrates the phrase meaning.
+ */
+export const VisualType = z.enum([
+    // Specific metaphor symbols
+    "footsteps",    // past, walking, journey, path
+    "door",         // future, opportunity, open, gateway
+    "sunrise",      // beginning, new, dawn, hope
+    "flower",       // growth, bloom, beauty, nature
+    "drops",        // rain, tears, falling, emotion
+    "mountain",     // climb, peak, challenge, overcome
+    "heartbeat",    // heart, feel, alive, passion
+    "eye",          // see, vision, clarity, focus
+    "fire",         // burn, energy, destroy, ignite
+    "waves",        // ocean, calm, flow, peace
+    "clock",        // time, wait, moment, now
+    "lightning",    // power, strike, sudden, shock
+    "scale",        // balance, choice, decide, weight
+    "stairs",       // rise, step, progress, level up
+    "shatter",      // break, free, destroy, escape
+    // Dynamic composition fallback
+    "compose",      // AI-directed: uses count + shape + arrangement
+]);
+
+export type VisualTypeName = z.infer<typeof VisualType>;
+
+/**
+ * A single phrase with its visual mapping.
+ */
+export const PhraseSchema = z.object({
+    text: z.string().describe("3-5 word phrase synced to voiceover"),
+    visual: VisualType.describe("Geometric animation symbol"),
+    // For "compose" type: dynamic shape composition
+    composeShape: z.enum(["circle", "triangle", "square", "line", "dot"]).optional()
+        .describe("Base shape for compose mode"),
+    composeCount: z.number().min(1).max(8).optional()
+        .describe("Number of shapes for compose mode"),
+    composeArrangement: z.enum(["flower", "ring", "stack", "grid", "scatter", "row"]).optional()
+        .describe("How shapes are arranged in compose mode"),
+    composeLabel: z.string().optional()
+        .describe("Short label to overlay on composed shapes"),
+});
+
+export type PhraseData = z.infer<typeof PhraseSchema>;
+
+/**
+ * Input props for the MotivationalReel composition.
  */
 export const ReelSchema = z.object({
-    // Content
-    hook: z.string().describe("Scroll-stopping opening line (5-8 words)"),
-    quote: z.string().describe("Main motivational speech/quote (60-80 words)"),
+    phrases: z.array(PhraseSchema)
+        .min(4)
+        .max(20)
+        .describe("Array of phrases with visual mappings, from AI"),
     author: z.string().describe("Speaker/author attribution"),
     cta: z.string().default("Follow for daily motivation"),
-
-    // Visual theme
-    theme: z
-        .enum(["dark", "sunset", "ocean", "fire", "galaxy"])
-        .default("dark")
-        .describe("Color theme for background gradients"),
-
-    // Branding
     watermarkText: z.string().default("@YourPage"),
-
-    // Timing (calculated from voiceover duration)
     durationInSeconds: z.number().default(35),
+    phraseDuration: z.number().default(80)
+        .describe("Duration per phrase in frames (at 30fps, 80 = ~2.7 seconds)"),
 });
 
 export type ReelProps = z.infer<typeof ReelSchema>;
-
-/**
- * Theme color palettes — each theme has primary, secondary, accent, and particle colors.
- */
-export const THEME_COLORS: Record<
-    ReelProps["theme"],
-    {
-        primary: string;
-        secondary: string;
-        accent: string;
-        particle: string;
-        text: string;
-        glow: string;
-    }
-> = {
-    dark: {
-        primary: "#0a0a1a",
-        secondary: "#1a1a3e",
-        accent: "#6366f1",
-        particle: "#818cf8",
-        text: "#f8fafc",
-        glow: "#6366f1",
-    },
-    sunset: {
-        primary: "#1a0a0a",
-        secondary: "#3e1a0a",
-        accent: "#f97316",
-        particle: "#fb923c",
-        text: "#fef3c7",
-        glow: "#f97316",
-    },
-    ocean: {
-        primary: "#0a1a1a",
-        secondary: "#0a2e3e",
-        accent: "#06b6d4",
-        particle: "#22d3ee",
-        text: "#ecfeff",
-        glow: "#06b6d4",
-    },
-    fire: {
-        primary: "#1a0a0a",
-        secondary: "#3e0a0a",
-        accent: "#ef4444",
-        particle: "#f87171",
-        text: "#fef2f2",
-        glow: "#ef4444",
-    },
-    galaxy: {
-        primary: "#050520",
-        secondary: "#0f0f3d",
-        accent: "#a855f7",
-        particle: "#c084fc",
-        text: "#f5f3ff",
-        glow: "#a855f7",
-    },
-};
