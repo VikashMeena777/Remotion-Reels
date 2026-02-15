@@ -49,6 +49,7 @@ jobs:
           PROPSEOF
           echo "AUDIO_URL=${{ github.event.client_payload.audio_url }}" >> $GITHUB_ENV
           echo "REEL_ID=${{ github.event.client_payload.reel_id }}" >> $GITHUB_ENV
+          echo "TOTAL_FRAMES=${{ github.event.client_payload.totalFrames }}" >> $GITHUB_ENV
 
       - name: Prepare inputs (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
@@ -63,10 +64,15 @@ jobs:
       - name: Render Remotion video
         run: |
           echo "🎬 Rendering MotivationalReel..."
+          FRAMES_FLAG=""
+          if [ -n "$TOTAL_FRAMES" ]; then
+            FRAMES_FLAG="--frames=0-${TOTAL_FRAMES}"
+          fi
           npx remotion render MotivationalReel /tmp/video-silent.mp4 \
             --props=/tmp/props.json \
             --codec=h264 \
-            --image-format=jpeg
+            --image-format=jpeg \
+            $FRAMES_FLAG
           echo "✅ Render complete!"
           ls -lh /tmp/video-silent.mp4
 
