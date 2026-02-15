@@ -24,36 +24,49 @@ export const PhraseScene: React.FC<PhraseSceneProps> = ({
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
 
-    const progress = frame / durationInFrames;
+    const progress = frame / Math.max(1, durationInFrames);
+
+    // Safe fade durations that scale down for short phrases
+    // Ensures inputRange is always strictly monotonically increasing
+    const fadeIn = Math.min(12, Math.floor(durationInFrames * 0.2));
+    const fadeOut = Math.min(12, Math.floor(durationInFrames * 0.2));
+    const holdStart = Math.max(fadeIn + 1, fadeIn);
+    const holdEnd = Math.max(holdStart + 1, durationInFrames - fadeOut);
 
     // Text fade in/out
     const textOpacity = interpolate(
         frame,
-        [0, 12, durationInFrames - 12, durationInFrames],
+        [0, fadeIn, holdEnd, durationInFrames],
         [0, 1, 1, 0],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
     // Text slide up
+    const slideIn = Math.min(15, Math.floor(durationInFrames * 0.25));
+    const slideOut = Math.min(10, Math.floor(durationInFrames * 0.15));
     const textY = interpolate(
         frame,
-        [0, 15, durationInFrames - 10, durationInFrames],
+        [0, slideIn, Math.max(slideIn + 1, durationInFrames - slideOut), durationInFrames],
         [20, 0, 0, -10],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
     // Symbol progress (0 to 1)
+    const symStart = Math.min(5, Math.floor(durationInFrames * 0.1));
+    const symEnd = Math.max(symStart + 1, durationInFrames - symStart);
     const symbolProgress = interpolate(
         frame,
-        [5, durationInFrames - 5],
+        [symStart, symEnd],
         [0, 1],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
     // Overall scene opacity (crossfade)
+    const sceneFade = Math.min(8, Math.floor(durationInFrames * 0.15));
+    const sceneHoldEnd = Math.max(sceneFade + 1, durationInFrames - sceneFade);
     const sceneOpacity = interpolate(
         frame,
-        [0, 8, durationInFrames - 8, durationInFrames],
+        [0, sceneFade, sceneHoldEnd, durationInFrames],
         [0, 1, 1, 0],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
