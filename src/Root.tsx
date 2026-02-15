@@ -1,18 +1,17 @@
 import { Composition } from "remotion";
 import { MotivationalReel } from "./compositions/MotivationalReel";
 import { ReelSchema } from "./schema";
+import type { ReelProps } from "./schema";
 
 /**
  * Root — Preview registration for Remotion Studio.
  * In production, inputProps come from GitHub Actions dispatch.
- * Preview uses sample phrases with mock startFrame/durationInFrames.
+ *
+ * `calculateMetadata` dynamically sets durationInFrames based on
+ * the Whisper-synced props (totalFrames from map-timestamps.mjs).
  */
 export const RemotionRoot: React.FC = () => {
-    const durationInSeconds = 25;
-    // Use a generous max — actual render length is controlled by --frames flag from CI
-    const totalFrames = 2000;
-
-    // Sample phrases with mock timing (in production, set by map-timestamps.mjs)
+    // Sample phrases with mock timing for preview
     const samplePhrases = [
         { text: "The past is behind you", visual: "footsteps" as const, startFrame: 0, durationInFrames: 60 },
         { text: "Open a new door", visual: "door" as const, startFrame: 55, durationInFrames: 55 },
@@ -28,17 +27,39 @@ export const RemotionRoot: React.FC = () => {
         <Composition
             id="MotivationalReel"
             component={MotivationalReel}
-            durationInFrames={totalFrames}
+            durationInFrames={900}
             fps={30}
             width={1080}
             height={1920}
             schema={ReelSchema}
+            calculateMetadata={({ props }) => {
+                // Compute actual total duration from phrase timings
+                const phrases = (props as any).phrases || [];
+                const lastPhrase = phrases[phrases.length - 1];
+                const lastPhraseEnd = lastPhrase
+                    ? lastPhrase.startFrame + lastPhrase.durationInFrames
+                    : 0;
+                // Author (2s) + CTA (2s) after phrases end
+                const outroDuration = 30 * 4; // 4 seconds at 30fps
+                const totalFromPhrases = lastPhraseEnd + outroDuration;
+
+                // Also check if totalFrames was set by map-timestamps.mjs
+                const totalFromProps = (props as any).totalFrames;
+
+                // Use whichever is larger, minimum 300 frames (10s)
+                const durationInFrames = Math.max(
+                    300,
+                    totalFromProps || totalFromPhrases
+                );
+
+                return { durationInFrames };
+            }}
             defaultProps={{
                 phrases: samplePhrases,
                 author: "Marcus Aurelius",
-                cta: "Follow for daily wisdom ✨",
+                cta: "Follow for daily wisdom",
                 watermarkText: "@Finority",
-                durationInSeconds,
+                durationInSeconds: 25,
             }}
         />
     );

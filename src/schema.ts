@@ -107,6 +107,8 @@ export const ReelSchema = z.object({
     durationInSeconds: z.number().default(35),
     audioDuration: z.number().optional()
         .describe("Actual audio duration in seconds (from Whisper)"),
+    totalFrames: z.number().optional()
+        .describe("Total frames for the composition (set by map-timestamps.mjs)"),
 });
 
 export type ReelProps = z.infer<typeof ReelSchema>;
