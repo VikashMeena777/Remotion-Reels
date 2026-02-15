@@ -151,11 +151,14 @@ jobs:
       - name: Merge video + audio
         run: |
           echo "🔀 Merging video + voiceover..."
+          # Get video duration (which includes CTA/author after audio)
+          VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 /tmp/video-silent.mp4)
+          echo "Video duration: ${VIDEO_DUR}s"
           ffmpeg -i /tmp/video-silent.mp4 -i /tmp/voiceover.mp3 \
             -c:v copy \
             -c:a aac -b:a 192k \
             -map 0:v:0 -map 1:a:0 \
-            -shortest \
+            -t ${VIDEO_DUR} \
             -y /tmp/final-reel.mp4
           echo "✅ Final reel created!"
           ls -lh /tmp/final-reel.mp4
