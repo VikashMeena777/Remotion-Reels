@@ -82,7 +82,7 @@ jobs:
       - name: Download voiceover audio
         run: |
           echo "🎙️ Downloading voiceover from Drive..."
-          rclone copyto "gdrive:$AUDIO_URL" /tmp/voiceover.mp3
+          rclone copyto "vk889900:$AUDIO_URL" /tmp/voiceover.mp3
           echo "✅ Audio downloaded!"
           ls -lh /tmp/voiceover.mp3
 
@@ -103,7 +103,7 @@ jobs:
         id: upload
         run: |
           FILENAME="reel-${REEL_ID}.mp4"
-          rclone copyto /tmp/final-reel.mp4 "gdrive:${{ secrets.OUTPUT_FOLDER_PATH }}/${FILENAME}"
+          rclone copyto /tmp/final-reel.mp4 "vk889900:${{ secrets.OUTPUT_FOLDER_PATH }}/${FILENAME}"
           echo "✅ Uploaded to Google Drive: ${FILENAME}"
           echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
 
