@@ -95,8 +95,17 @@ export const PhraseScene: React.FC<PhraseSceneProps> = ({
                     transform: `translateY(${textY}px)`,
                 }}
             >
+                {/* Dark gradient backdrop for readability */}
+                <div style={{
+                    position: "absolute",
+                    inset: -30,
+                    background: "linear-gradient(transparent, rgba(0,0,0,0.7) 30%, rgba(0,0,0,0.8) 50%, rgba(0,0,0,0.7) 70%, transparent)",
+                    borderRadius: 20,
+                    pointerEvents: "none",
+                }} />
                 <p
                     style={{
+                        position: "relative",
                         color: "white",
                         fontSize: 36,
                         fontFamily: "'Inter', 'Helvetica Neue', sans-serif",
