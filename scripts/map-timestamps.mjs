@@ -135,11 +135,8 @@ for (let i = 0; i < phrases.length; i++) {
     phrases[i].startFrame = startFrame;
     phrases[i].durationInFrames = Math.max(20, endFrame - startFrame);
 
-    // Use speechSegment as the on-screen subtitle text (the actual spoken words)
-    if (phrases[i].speechSegment) {
-        phrases[i].text = phrases[i].speechSegment;
-        delete phrases[i].speechSegment;
-    }
+    // Remove speechSegment from final props (not needed by Remotion)
+    delete phrases[i].speechSegment;
 
     console.log(`  ✅ Phrase ${i + 1}: "${phrases[i].text}" [${phrases[i].visual}] → frame ${startFrame}–${endFrame} (${phrases[i].durationInFrames}f)`);
 }

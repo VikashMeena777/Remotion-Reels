@@ -51,13 +51,21 @@ export const PhraseScene: React.FC<PhraseSceneProps> = ({
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
-    // Symbol progress (0 to 1)
-    const symStart = Math.min(5, Math.floor(durationInFrames * 0.1));
-    const symEnd = Math.max(symStart + 1, durationInFrames - symStart);
+    // Symbol progress (0 to 1) — completes animation in ~1.5 seconds for snappy feel
+    const symAnimDuration = Math.min(45, durationInFrames); // 1.5s at 30fps
     const symbolProgress = interpolate(
         frame,
-        [symStart, symEnd],
+        [0, symAnimDuration],
         [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+    );
+
+    // Symbol fade out at end of phrase
+    const symFadeOut = Math.min(8, Math.floor(durationInFrames * 0.15));
+    const symbolOpacity = interpolate(
+        frame,
+        [0, 5, Math.max(6, durationInFrames - symFadeOut), durationInFrames],
+        [0, 1, 1, 0],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
@@ -121,7 +129,9 @@ export const PhraseScene: React.FC<PhraseSceneProps> = ({
             </div>
 
             {/* Visual symbol — center */}
-            <VisualSymbol phrase={phrase} progress={symbolProgress} />
+            <div style={{ opacity: symbolOpacity }}>
+                <VisualSymbol phrase={phrase} progress={symbolProgress} />
+            </div>
         </div>
     );
 };
