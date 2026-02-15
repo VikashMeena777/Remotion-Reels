@@ -19,7 +19,7 @@ export const Watermark: React.FC<WatermarkProps> = ({ text }) => {
         <div
             style={{
                 position: "absolute",
-                bottom: 180,
+                bottom: 220,
                 left: 0,
                 right: 0,
                 textAlign: "center",
