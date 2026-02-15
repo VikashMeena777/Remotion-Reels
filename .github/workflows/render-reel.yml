@@ -18,7 +18,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
 
@@ -40,6 +40,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
 
+      - name: Setup Python & Whisper
+        run: |
+          pip install -q openai-whisper
+
       # --- Prepare payload ---
       - name: Prepare inputs (repository_dispatch)
         if: github.event_name == 'repository_dispatch'
@@ -49,7 +53,6 @@ jobs:
           PROPSEOF
           echo "AUDIO_URL=${{ github.event.client_payload.audio_url }}" >> $GITHUB_ENV
           echo "REEL_ID=${{ github.event.client_payload.reel_id }}" >> $GITHUB_ENV
-          echo "TOTAL_FRAMES=${{ github.event.client_payload.totalFrames }}" >> $GITHUB_ENV
 
       - name: Prepare inputs (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
@@ -59,22 +62,6 @@ jobs:
           PROPSEOF
           echo "AUDIO_URL=${{ github.event.inputs.audio_url }}" >> $GITHUB_ENV
           echo "REEL_ID=manual-$(date +%s)" >> $GITHUB_ENV
-
-      # --- Render video (silent, just visuals) ---
-      - name: Render Remotion video
-        run: |
-          echo "🎬 Rendering MotivationalReel..."
-          FRAMES_FLAG=""
-          if [ -n "$TOTAL_FRAMES" ]; then
-            FRAMES_FLAG="--frames=0-${TOTAL_FRAMES}"
-          fi
-          npx remotion render MotivationalReel /tmp/video-silent.mp4 \
-            --props=/tmp/props.json \
-            --codec=h264 \
-            --image-format=jpeg \
-            $FRAMES_FLAG
-          echo "✅ Render complete!"
-          ls -lh /tmp/video-silent.mp4
 
       # --- Setup rclone (needed for download + upload) ---
       - name: Setup rclone for Google Drive
@@ -91,6 +78,74 @@ jobs:
           rclone copyto "vk889900:$AUDIO_URL" /tmp/voiceover.mp3
           echo "✅ Audio downloaded!"
           ls -lh /tmp/voiceover.mp3
+
+      # --- Run Whisper to get word-level timestamps ---
+      - name: Extract timestamps with Whisper
+        run: |
+          echo "🔍 Running Whisper for word-level timestamps..."
+          python3 -c "
+          import whisper
+          import json
+
+          model = whisper.load_model('base')
+          result = model.transcribe('/tmp/voiceover.mp3', word_timestamps=True)
+
+          # Extract word timestamps from segments
+          output = {
+              'text': result.get('text', ''),
+              'duration': result.get('segments', [{}])[-1].get('end', 0) if result.get('segments') else 0,
+              'words': [],
+              'segments': result.get('segments', [])
+          }
+
+          for seg in result.get('segments', []):
+              for w in seg.get('words', []):
+                  output['words'].append({
+                      'word': w['word'].strip(),
+                      'start': round(w['start'], 3),
+                      'end': round(w['end'], 3)
+                  })
+
+          with open('/tmp/whisper-output.json', 'w') as f:
+              json.dump(output, f, indent=2)
+
+          print(f'✅ Found {len(output[\"words\"])} words')
+          print(f'📏 Audio duration: {output[\"duration\"]:.1f}s')
+          for w in output['words'][:5]:
+              print(f'  {w[\"start\"]:.2f}s-{w[\"end\"]:.2f}s: {w[\"word\"]}')
+          print('  ...')
+          "
+
+      # --- Map Whisper timestamps to Remotion phrases ---
+      - name: Map timestamps to phrases
+        run: |
+          echo "🗺️ Mapping word timestamps to phrases..."
+          node scripts/map-timestamps.mjs \
+            --whisper /tmp/whisper-output.json \
+            --props /tmp/props.json \
+            --output /tmp/props-synced.json \
+            --fps 30
+          echo "✅ Props synced with audio timestamps!"
+          echo ""
+          echo "📄 Synced props:"
+          cat /tmp/props-synced.json | head -60
+          
+          # Extract totalFrames from synced props
+          TOTAL_FRAMES=$(node -e "const p = require('/tmp/props-synced.json'); console.log(p.totalFrames)")
+          echo "TOTAL_FRAMES=$TOTAL_FRAMES" >> $GITHUB_ENV
+          echo "🎬 Total frames: $TOTAL_FRAMES"
+
+      # --- Render video (silent, just visuals) ---
+      - name: Render Remotion video
+        run: |
+          echo "🎬 Rendering MotivationalReel with synced timestamps..."
+          npx remotion render MotivationalReel /tmp/video-silent.mp4 \
+            --props=/tmp/props-synced.json \
+            --codec=h264 \
+            --image-format=jpeg \
+            --frames=0-${TOTAL_FRAMES}
+          echo "✅ Render complete!"
+          ls -lh /tmp/video-silent.mp4
 
       # --- Merge video + audio into final reel ---
       - name: Merge video + audio
