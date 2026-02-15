@@ -28,11 +28,17 @@ export const VisualType = z.enum([
 export type VisualTypeName = z.infer<typeof VisualType>;
 
 /**
- * A single phrase with its visual mapping.
+ * A single phrase with its visual mapping and audio-synced timing.
+ * startFrame and durationInFrames come from Whisper word timestamps.
  */
 export const PhraseSchema = z.object({
     text: z.string().describe("3-5 word phrase synced to voiceover"),
     visual: VisualType.describe("Geometric animation symbol"),
+    // Audio-synced timing (set by map-timestamps.mjs in CI)
+    startFrame: z.number().default(0)
+        .describe("Frame when this phrase starts (from Whisper timestamps)"),
+    durationInFrames: z.number().default(60)
+        .describe("Duration of this phrase in frames (from Whisper timestamps)"),
     // For "compose" type: dynamic shape composition
     composeShape: z.enum(["circle", "triangle", "square", "line", "dot"]).optional()
         .describe("Base shape for compose mode"),
@@ -48,18 +54,19 @@ export type PhraseData = z.infer<typeof PhraseSchema>;
 
 /**
  * Input props for the MotivationalReel composition.
+ * Timing is now per-phrase (from Whisper), not global.
  */
 export const ReelSchema = z.object({
     phrases: z.array(PhraseSchema)
         .min(4)
         .max(20)
-        .describe("Array of phrases with visual mappings, from AI"),
+        .describe("Array of phrases with visual mappings and timing from Whisper"),
     author: z.string().describe("Speaker/author attribution"),
     cta: z.string().default("Follow for daily motivation"),
     watermarkText: z.string().default("@YourPage"),
     durationInSeconds: z.number().default(35),
-    phraseDuration: z.number().default(80)
-        .describe("Duration per phrase in frames (at 30fps, 80 = ~2.7 seconds)"),
+    audioDuration: z.number().optional()
+        .describe("Actual audio duration in seconds (from Whisper)"),
 });
 
 export type ReelProps = z.infer<typeof ReelSchema>;
