@@ -1,0 +1,24 @@
+{
+    "name": "remotion-reels-factory",
+    "version": "1.0.0",
+    "description": "Premium motivational reels factory — After Effects quality motion graphics",
+    "scripts": {
+        "start": "npx remotion studio",
+        "build": "npx remotion render MotivationalReel out/reel.mp4",
+        "render": "npx remotion render",
+        "upgrade": "npx remotion upgrade"
+    },
+    "dependencies": {
+        "@remotion/cli": "4.0.242",
+        "@remotion/zod-types": "4.0.242",
+        "remotion": "4.0.242",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "zod": "^3.23.8"
+    },
+    "devDependencies": {
+        "@remotion/eslint-config": "4.0.242",
+        "@types/react": "^18.3.12",
+        "typescript": "^5.6.3"
+    }
+}
