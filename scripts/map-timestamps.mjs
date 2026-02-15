@@ -6,6 +6,10 @@
  * maps words to phrases to compute exact startFrame/durationInFrames per phrase,
  * and writes updated props to output file.
  * 
+ * KEY DESIGN: Each phrase EXTENDS until the next phrase starts + overlap,
+ * so there are NEVER gaps between phrases. The crossfade in PhraseScene
+ * handles smooth transitions.
+ * 
  * Usage:
  *   node scripts/map-timestamps.mjs \
  *     --whisper /tmp/whisper-output.json \
@@ -28,13 +32,14 @@ const propsPath = getArg('props', '/tmp/props.json');
 const outputPath = getArg('output', '/tmp/props-synced.json');
 const fps = parseInt(getArg('fps', '30'), 10);
 
+// Overlap frames for crossfade (matches PhraseScene crossfade timing)
+const OVERLAP_FRAMES = 10;
+
 // Load files
 const whisperData = JSON.parse(readFileSync(whisperPath, 'utf8'));
 const props = JSON.parse(readFileSync(propsPath, 'utf8'));
 
 // Extract word timestamps from Whisper output
-// Whisper outputs: { segments: [{ words: [{word, start, end}, ...] }] }
-// or for some versions: { words: [{word, start, end}, ...] }
 let words = [];
 if (whisperData.words && Array.isArray(whisperData.words)) {
     words = whisperData.words;
@@ -56,19 +61,18 @@ console.log(`📝 Found ${words.length} words with timestamps`);
 console.log(`📄 Found ${props.phrases.length} phrases to map`);
 
 /**
- * Normalize text for comparison:
- * - lowercase, remove punctuation, collapse whitespace
+ * Normalize text for comparison
  */
 function normalize(text) {
     return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 /**
- * Map words to phrases using sequential matching.
- * For each phrase, find the span of words that matches its text.
+ * Step 1: Find the Whisper start/end time for each phrase
  */
 const phrases = props.phrases;
 let wordIdx = 0;
+const phraseTimings = [];
 
 for (let i = 0; i < phrases.length; i++) {
     const phrase = phrases[i];
@@ -78,7 +82,6 @@ for (let i = 0; i < phrases.length; i++) {
     let bestStart = wordIdx;
     let bestScore = 0;
 
-    // Search window: from current position to a reasonable range ahead
     const searchEnd = Math.min(wordIdx + phraseWords.length + 5, words.length);
 
     for (let tryStart = wordIdx; tryStart < searchEnd; tryStart++) {
@@ -97,41 +100,61 @@ for (let i = 0; i < phrases.length; i++) {
         }
     }
 
-    // Calculate start and end times
     const phraseStartWord = Math.min(bestStart, words.length - 1);
     const phraseEndWord = Math.min(bestStart + phraseWords.length - 1, words.length - 1);
 
     const startTime = words[phraseStartWord].start;
     const endTime = words[phraseEndWord].end;
 
-    // Convert to frames
-    phrase.startFrame = Math.round(startTime * fps);
-    phrase.durationInFrames = Math.max(15, Math.round((endTime - startTime) * fps));
+    phraseTimings.push({ startTime, endTime });
 
-    console.log(`  ✅ Phrase ${i + 1}: "${phrase.text}" → ${startTime.toFixed(2)}s-${endTime.toFixed(2)}s (frame ${phrase.startFrame}-${phrase.startFrame + phrase.durationInFrames})`);
+    console.log(`  📍 Phrase ${i + 1}: "${phrase.text}" → ${startTime.toFixed(2)}s-${endTime.toFixed(2)}s`);
 
-    // Advance word pointer past this phrase
     wordIdx = phraseEndWord + 1;
 }
 
-// Calculate total duration
+/**
+ * Step 2: Set startFrame and durationInFrames with OVERLAP
+ * Each phrase extends until the next phrase starts + overlap frames,
+ * so crossfades are seamless (no black gaps).
+ */
+for (let i = 0; i < phrases.length; i++) {
+    const timing = phraseTimings[i];
+    const startFrame = Math.round(timing.startTime * fps);
+
+    let endFrame;
+    if (i < phrases.length - 1) {
+        // Extend to where the NEXT phrase starts + overlap for smooth crossfade
+        const nextStartFrame = Math.round(phraseTimings[i + 1].startTime * fps);
+        endFrame = nextStartFrame + OVERLAP_FRAMES;
+    } else {
+        // Last phrase: use its natural end + a small buffer
+        endFrame = Math.round(timing.endTime * fps) + Math.round(fps * 0.5);
+    }
+
+    phrases[i].startFrame = startFrame;
+    phrases[i].durationInFrames = Math.max(20, endFrame - startFrame);
+
+    console.log(`  ✅ Phrase ${i + 1}: frame ${startFrame}–${endFrame} (${phrases[i].durationInFrames} frames, ${(phrases[i].durationInFrames / fps).toFixed(1)}s)`);
+}
+
+// Get actual audio duration from Whisper
+const audioDuration = whisperData.duration || words[words.length - 1].end || 20;
+const audioEndFrame = Math.round(audioDuration * fps);
+
+// The last phrase visual ends here
 const lastPhrase = phrases[phrases.length - 1];
 const lastPhraseEnd = lastPhrase.startFrame + lastPhrase.durationInFrames;
 
-// Add some padding for author + CTA scenes after the audio
-const outroDuration = Math.round(fps * 4); // 4 seconds for author + CTA
-const totalFrames = lastPhraseEnd + outroDuration;
-
-// Get actual audio duration from Whisper
-const audioDuration = whisperData.duration || words[words.length - 1].end || (totalFrames / fps);
+// Author + CTA come after audio ends (4 seconds total)
+const outroDuration = Math.round(fps * 4);
+const totalFrames = Math.max(lastPhraseEnd, audioEndFrame) + outroDuration;
 
 // Update props
 props.phrases = phrases;
 props.totalFrames = totalFrames;
 props.durationInSeconds = Math.ceil(totalFrames / fps);
 props.audioDuration = audioDuration;
-
-// Remove old phraseDuration if present (no longer needed)
 delete props.phraseDuration;
 
 // Write output
@@ -139,7 +162,8 @@ writeFileSync(outputPath, JSON.stringify(props, null, 2));
 
 console.log(`\n🎬 Timing Summary:`);
 console.log(`  Audio duration: ${audioDuration.toFixed(1)}s`);
-console.log(`  Last phrase ends at: ${(lastPhraseEnd / fps).toFixed(1)}s (frame ${lastPhraseEnd})`);
-console.log(`  Outro: ${(outroDuration / fps).toFixed(1)}s`);
+console.log(`  Last phrase visual ends: frame ${lastPhraseEnd} (${(lastPhraseEnd / fps).toFixed(1)}s)`);
+console.log(`  Audio ends: frame ${audioEndFrame} (${(audioEndFrame / fps).toFixed(1)}s)`);
+console.log(`  Outro starts: frame ${Math.max(lastPhraseEnd, audioEndFrame)}`);
 console.log(`  Total frames: ${totalFrames} (${(totalFrames / fps).toFixed(1)}s)`);
 console.log(`\n✅ Synced props written to ${outputPath}`);
