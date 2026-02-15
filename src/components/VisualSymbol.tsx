@@ -619,7 +619,9 @@ export const VisualSymbol: React.FC<VisualSymbolProps> = ({ phrase, progress }) 
             justifyContent: "center",
         }}>
             {showSpotlight && <SpotlightBeam progress={progress} />}
-            {renderSymbol()}
+            <div style={{ transform: "scale(1.3)" }}>
+                {renderSymbol()}
+            </div>
         </div>
     );
 };

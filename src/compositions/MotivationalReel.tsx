@@ -177,7 +177,7 @@ const AuthorScene: React.FC<{ author: string }> = ({ author }) => {
  */
 const CTAMinimal: React.FC<{ cta: string }> = ({ cta }) => {
     const frame = useCurrentFrame();
-    const opacity = interpolate(frame, [0, 20, 80, 100], [0, 0.7, 0.7, 0], {
+    const opacity = interpolate(frame, [0, 20, 80, 100], [0, 0.8, 0.8, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
     });
@@ -188,22 +188,22 @@ const CTAMinimal: React.FC<{ cta: string }> = ({ cta }) => {
                 position: "absolute",
                 inset: 0,
                 display: "flex",
-                alignItems: "flex-end",
+                alignItems: "center",
                 justifyContent: "center",
-                paddingBottom: 120,
+                paddingTop: 100,
                 backgroundColor: "black",
                 opacity,
             }}
         >
             <p
                 style={{
-                    color: "rgba(255,255,255,0.5)",
-                    fontSize: 18,
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 28,
                     fontFamily: "'Inter', sans-serif",
-                    fontWeight: 300,
+                    fontWeight: 400,
                     letterSpacing: 2,
                     textAlign: "center",
-                    maxWidth: "70%",
+                    maxWidth: "75%",
                     margin: 0,
                 }}
             >

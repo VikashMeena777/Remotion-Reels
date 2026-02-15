@@ -6,11 +6,11 @@ interface WatermarkProps {
 }
 
 /**
- * Minimal watermark — subtle white text, bottom-right corner.
+ * Watermark — centered at lower-center area, prominent but elegant.
  */
 export const Watermark: React.FC<WatermarkProps> = ({ text }) => {
     const frame = useCurrentFrame();
-    const opacity = interpolate(frame, [30, 50], [0, 0.3], {
+    const opacity = interpolate(frame, [30, 50], [0, 0.45], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
     });
@@ -19,13 +19,15 @@ export const Watermark: React.FC<WatermarkProps> = ({ text }) => {
         <div
             style={{
                 position: "absolute",
-                bottom: 40,
-                right: 30,
+                bottom: 180,
+                left: 0,
+                right: 0,
+                textAlign: "center",
                 color: "white",
-                fontSize: 14,
+                fontSize: 28,
                 fontFamily: "'Inter', sans-serif",
-                fontWeight: 300,
-                letterSpacing: 1,
+                fontWeight: 400,
+                letterSpacing: 2,
                 opacity,
             }}
         >

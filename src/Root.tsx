@@ -20,7 +20,7 @@ const defaultPhrases = [
 
 export const RemotionRoot: React.FC = () => {
     const durationInSeconds = 35;
-    const phraseDuration = 80; // ~2.7 sec per phrase at 30fps
+    const phraseDuration = 50; // ~1.7 sec per phrase at 30fps — matches audio timing
     // Use a generous max — actual render length is controlled by --frames flag from CI
     const totalFrames = 2000;
 
