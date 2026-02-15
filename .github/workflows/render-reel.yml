@@ -66,13 +66,19 @@ jobs:
           echo "✅ Render complete!"
           ls -lh /tmp/video-silent.mp4
 
+      # --- Setup rclone (needed for download + upload) ---
+      - name: Setup rclone for Google Drive
+        run: |
+          curl -s https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" | base64 -d > ~/.config/rclone/rclone.conf
+          rclone listremotes
+
       # --- Download voiceover audio ---
       - name: Download voiceover audio
         run: |
           echo "🎙️ Downloading voiceover from Drive..."
-          # Install gdown for Google Drive downloads
-          pip install -q gdown
-          gdown "$AUDIO_URL" -O /tmp/voiceover.mp3 --fuzzy
+          rclone copyto "gdrive:$AUDIO_URL" /tmp/voiceover.mp3
           echo "✅ Audio downloaded!"
           ls -lh /tmp/voiceover.mp3
 
@@ -88,14 +94,6 @@ jobs:
             -y /tmp/final-reel.mp4
           echo "✅ Final reel created!"
           ls -lh /tmp/final-reel.mp4
-
-      # --- Upload to Google Drive ---
-      - name: Setup rclone for Google Drive
-        run: |
-          curl -s https://rclone.org/install.sh | sudo bash
-          mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" | base64 -d > ~/.config/rclone/rclone.conf
-          rclone listremotes
 
       - name: Upload final reel to Google Drive
         id: upload
