@@ -33,7 +33,6 @@ export const MotivationalReel: React.FC<ReelProps> = ({
 
     // Reserve time for intro + author/CTA at end
     const introDuration = Math.round(fps * 1.5);
-    const outroDuration = Math.round(fps * 4);
 
     // Intro: fade from black
     const introOpacity = interpolate(
@@ -43,9 +42,13 @@ export const MotivationalReel: React.FC<ReelProps> = ({
         { extrapolateRight: "clamp" }
     );
 
-    // Author scene timing
+    // Author scene timing — only show if there's time
     const authorStart = introDuration + totalPhraseFrames;
+    const authorDuration = Math.round(fps * 2.5);
     const ctaStart = authorStart + Math.round(fps * 2);
+    const ctaDuration = Math.max(1, durationInFrames - ctaStart);
+    const showAuthor = authorStart + authorDuration <= durationInFrames;
+    const showCTA = ctaStart < durationInFrames;
 
     return (
         <div
@@ -80,23 +83,27 @@ export const MotivationalReel: React.FC<ReelProps> = ({
                     );
                 })}
 
-                {/* Author attribution */}
-                <Sequence
-                    from={authorStart}
-                    durationInFrames={Math.round(fps * 2.5)}
-                    name="Author"
-                >
-                    <AuthorScene author={author} />
-                </Sequence>
+                {/* Author attribution — only if there's time */}
+                {showAuthor && (
+                    <Sequence
+                        from={authorStart}
+                        durationInFrames={authorDuration}
+                        name="Author"
+                    >
+                        <AuthorScene author={author} />
+                    </Sequence>
+                )}
 
-                {/* CTA */}
-                <Sequence
-                    from={ctaStart}
-                    durationInFrames={durationInFrames - ctaStart}
-                    name="CTA"
-                >
-                    <CTAMinimal cta={cta} />
-                </Sequence>
+                {/* CTA — only if there's time */}
+                {showCTA && (
+                    <Sequence
+                        from={ctaStart}
+                        durationInFrames={ctaDuration}
+                        name="CTA"
+                    >
+                        <CTAMinimal cta={cta} />
+                    </Sequence>
+                )}
 
                 {/* Watermark — always visible */}
                 <Watermark text={watermarkText} />

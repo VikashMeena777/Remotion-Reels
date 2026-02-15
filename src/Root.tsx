@@ -21,13 +21,8 @@ const defaultPhrases = [
 export const RemotionRoot: React.FC = () => {
     const durationInSeconds = 35;
     const phraseDuration = 80; // ~2.7 sec per phrase at 30fps
-    const overlapFrames = 8;
-    const introDuration = Math.round(FPS * 1.5);
-    const outroDuration = Math.round(FPS * 4);
-    const totalPhraseFrames =
-        defaultPhrases.length * phraseDuration -
-        (defaultPhrases.length - 1) * overlapFrames;
-    const totalFrames = introDuration + totalPhraseFrames + outroDuration;
+    // Use a generous max — actual render length is controlled by --frames flag from CI
+    const totalFrames = 2000;
 
     return (
         <>
