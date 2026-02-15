@@ -44,14 +44,18 @@ jobs:
       - name: Prepare inputs (repository_dispatch)
         if: github.event_name == 'repository_dispatch'
         run: |
-          echo '${{ toJson(github.event.client_payload.props) }}' > /tmp/props.json
+          cat << 'PROPSEOF' > /tmp/props.json
+          ${{ toJson(github.event.client_payload.props) }}
+          PROPSEOF
           echo "AUDIO_URL=${{ github.event.client_payload.audio_url }}" >> $GITHUB_ENV
           echo "REEL_ID=${{ github.event.client_payload.reel_id }}" >> $GITHUB_ENV
 
       - name: Prepare inputs (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         run: |
-          echo '${{ github.event.inputs.props }}' > /tmp/props.json
+          cat << 'PROPSEOF' > /tmp/props.json
+          ${{ github.event.inputs.props }}
+          PROPSEOF
           echo "AUDIO_URL=${{ github.event.inputs.audio_url }}" >> $GITHUB_ENV
           echo "REEL_ID=manual-$(date +%s)" >> $GITHUB_ENV
 
