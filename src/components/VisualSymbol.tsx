@@ -444,8 +444,8 @@ interface VisualSymbolProps {
 }
 
 export const VisualSymbol: React.FC<VisualSymbolProps> = ({ phrase, progress }) => {
-    // Generate a unique seed from phrase text + visual name
-    const text = (phrase.text || "") + (phrase.visual || "") + (phrase.speechSegment || "");
+    // Generate a unique seed from phrase text + visual name + visualSeed
+    const text = (phrase.text || "") + (phrase.visual || "") + (phrase.visualSeed || phrase.speechSegment || "");
     const seed = hashText(text);
 
     // Deterministically select visual parameters from seed

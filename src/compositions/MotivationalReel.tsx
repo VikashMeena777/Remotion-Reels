@@ -26,12 +26,12 @@ export const MotivationalReel: React.FC<ReelProps> = ({
     const frame = useCurrentFrame();
     const { fps, durationInFrames } = useVideoConfig();
 
-    // Gentle fade from black at the very start (1 sec)
-    const introDuration = Math.round(fps * 1);
+    // Quick fade in at start (0.5 sec) — starts at 0.3 to prevent full black
+    const introDuration = Math.round(fps * 0.5);
     const introOpacity = interpolate(
         frame,
         [0, introDuration],
-        [0, 1],
+        [0.3, 1],
         { extrapolateRight: "clamp" }
     );
 

@@ -88,6 +88,8 @@ export const PhraseSchema = z.object({
         .describe("Animation style for the visual"),
     composeLabel: z.string().optional()
         .describe("Optional short label overlay"),
+    visualSeed: z.string().optional()
+        .describe("Preserved speech segment used as seed for generative visuals"),
 });
 
 export type PhraseData = z.infer<typeof PhraseSchema>;
