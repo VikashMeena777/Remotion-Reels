@@ -3,7 +3,6 @@ import {
     useCurrentFrame,
     useVideoConfig,
     interpolate,
-    spring,
 } from "remotion";
 import type { PhraseData } from "../schema";
 import { VisualSymbol } from "./VisualSymbol";
@@ -27,55 +26,48 @@ export const PhraseScene: React.FC<PhraseSceneProps> = ({
     const progress = frame / Math.max(1, durationInFrames);
 
     // Safe fade durations that scale down for short phrases
-    // Ensures inputRange is always strictly monotonically increasing
-    const fadeIn = Math.min(12, Math.floor(durationInFrames * 0.2));
-    const fadeOut = Math.min(12, Math.floor(durationInFrames * 0.2));
-    const holdStart = Math.max(fadeIn + 1, fadeIn);
-    const holdEnd = Math.max(holdStart + 1, durationInFrames - fadeOut);
+    const fadeIn = Math.min(8, Math.floor(durationInFrames * 0.15));
+    const fadeOut = Math.min(6, Math.floor(durationInFrames * 0.1));
+    const holdEnd = Math.max(fadeIn + 2, durationInFrames - fadeOut);
 
-    // Text fade in/out
+    // Text fade in/out — gentle transitions
     const textOpacity = interpolate(
         frame,
         [0, fadeIn, holdEnd, durationInFrames],
-        [0, 1, 1, 0],
+        [0, 1, 1, 0.3],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
     // Text slide up
-    const slideIn = Math.min(15, Math.floor(durationInFrames * 0.25));
-    const slideOut = Math.min(10, Math.floor(durationInFrames * 0.15));
+    const slideIn = Math.min(12, Math.floor(durationInFrames * 0.2));
     const textY = interpolate(
         frame,
-        [0, slideIn, Math.max(slideIn + 1, durationInFrames - slideOut), durationInFrames],
-        [20, 0, 0, -10],
+        [0, slideIn, durationInFrames],
+        [15, 0, -5],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
-    // Symbol progress (0 to 1) — completes animation in ~1.5 seconds for snappy feel
-    const symAnimDuration = Math.min(45, durationInFrames); // 1.5s at 30fps
+    // Symbol progress — runs full duration for continuous visual movement
     const symbolProgress = interpolate(
         frame,
-        [0, symAnimDuration],
+        [0, durationInFrames],
         [0, 1],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
-    // Symbol fade out at end of phrase
-    const symFadeOut = Math.min(8, Math.floor(durationInFrames * 0.15));
+    // Symbol opacity — NEVER goes below 0.2 to prevent black screen
     const symbolOpacity = interpolate(
         frame,
-        [0, 5, Math.max(6, durationInFrames - symFadeOut), durationInFrames],
-        [0, 1, 1, 0],
+        [0, 4, Math.max(5, durationInFrames - 4), durationInFrames],
+        [0.2, 1, 1, 0.3],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
-    // Overall scene opacity (crossfade)
-    const sceneFade = Math.min(8, Math.floor(durationInFrames * 0.15));
-    const sceneHoldEnd = Math.max(sceneFade + 1, durationInFrames - sceneFade);
+    // Scene opacity — NEVER fades to 0, minimum 0.3 to prevent black flashes
     const sceneOpacity = interpolate(
         frame,
-        [0, sceneFade, sceneHoldEnd, durationInFrames],
-        [0, 1, 1, 0],
+        [0, Math.min(6, Math.floor(durationInFrames * 0.1)), Math.max(7, durationInFrames - 4), durationInFrames],
+        [0.3, 1, 1, 0.4],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
