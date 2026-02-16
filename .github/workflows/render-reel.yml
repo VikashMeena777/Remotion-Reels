@@ -10,8 +10,8 @@ on:
         description: 'JSON inputProps for the Remotion composition'
         required: true
         type: string
-      audio_url:
-        description: 'Google Drive URL for the voiceover audio'
+      tts_text:
+        description: 'Text to convert to speech using Edge TTS'
         required: true
         type: string
 
@@ -40,9 +40,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
 
-      - name: Setup Python & Whisper
+      - name: Setup Python, Whisper & Edge TTS
         run: |
-          pip install -q openai-whisper
+          pip install -q openai-whisper edge-tts
 
       # --- Prepare payload ---
       - name: Prepare inputs (repository_dispatch)
@@ -51,7 +51,12 @@ jobs:
           cat << 'PROPSEOF' > /tmp/props.json
           ${{ toJson(github.event.client_payload.props) }}
           PROPSEOF
-          echo "AUDIO_URL=${{ github.event.client_payload.audio_url }}" >> $GITHUB_ENV
+
+          # Save TTS text
+          cat << 'TTSEOF' > /tmp/tts_text.txt
+          ${{ github.event.client_payload.tts_text }}
+          TTSEOF
+
           echo "REEL_ID=${{ github.event.client_payload.reel_id }}" >> $GITHUB_ENV
 
       - name: Prepare inputs (workflow_dispatch)
@@ -60,24 +65,38 @@ jobs:
           cat << 'PROPSEOF' > /tmp/props.json
           ${{ github.event.inputs.props }}
           PROPSEOF
-          echo "AUDIO_URL=${{ github.event.inputs.audio_url }}" >> $GITHUB_ENV
+
+          # Save TTS text
+          cat << 'TTSEOF' > /tmp/tts_text.txt
+          ${{ github.event.inputs.tts_text }}
+          TTSEOF
+
           echo "REEL_ID=manual-$(date +%s)" >> $GITHUB_ENV
 
-      # --- Setup rclone (needed for download + upload) ---
+      # --- Generate voiceover with Edge TTS (FREE) ---
+      - name: Generate voiceover with Edge TTS
+        run: |
+          echo "🎙️ Generating voiceover with Edge TTS..."
+          TTS_TEXT=$(cat /tmp/tts_text.txt)
+          echo "📝 Text: ${TTS_TEXT:0:100}..."
+          
+          edge-tts \
+            --voice "en-US-ChristopherNeural" \
+            --rate "+5%" \
+            --pitch "+0Hz" \
+            --text "$TTS_TEXT" \
+            --write-media /tmp/voiceover.mp3
+          
+          echo "✅ Voiceover generated!"
+          ls -lh /tmp/voiceover.mp3
+
+      # --- Setup rclone (needed for upload only) ---
       - name: Setup rclone for Google Drive
         run: |
           curl -s https://rclone.org/install.sh | sudo bash
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" | base64 -d > ~/.config/rclone/rclone.conf
           rclone listremotes
-
-      # --- Download voiceover audio ---
-      - name: Download voiceover audio
-        run: |
-          echo "🎙️ Downloading voiceover from Drive..."
-          rclone copyto "vk889900:$AUDIO_URL" /tmp/voiceover.mp3
-          echo "✅ Audio downloaded!"
-          ls -lh /tmp/voiceover.mp3
 
       # --- Run Whisper to get word-level timestamps ---
       - name: Extract timestamps with Whisper
